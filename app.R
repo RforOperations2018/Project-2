@@ -11,6 +11,12 @@ library(shiny)
 library(tidyverse)
 library(readr)
 library(lubridate)
+library(rgdal)
+library(jsonlite)
+library(httr)
+library(shinydashboard)
+library(shinydashboardPlus)
+library(data.table)
 
 #Get proper year
 properyear <- function(x, year=1968){
@@ -26,7 +32,8 @@ lifers.load <- PA_DOC_Lifers_10_12_16_years <- read_csv("PA DOC Lifers-10.12.16-
          `Committing Date` = properyear(as.Date(`Committing Date`, format = "%m/%d/%y"), year = year(now())),
          `Age at time of commitment` = round(as.numeric(difftime(`Committing Date`, `Date of Birth`, unit="weeks"))/52.25),
          `# of Years in Prison` = round(as.numeric(difftime(now(), `Committing Date`, unit="weeks"))/52.25),
-         `Current Age` = round(as.numeric(difftime(now(), `Date of Birth`, unit="weeks"))/52.25))
+         `Current Age` = round(as.numeric(difftime(now(), `Date of Birth`, unit="weeks"))/52.25),
+         `Committing County` = str_to_title(`Committing County`))
 
 #round((`Committing Date` - `Date of Birth`)/365))
   # mutate(`Years in Prison (as of today)` = year(now())-year(properyear(as.Date(`Committing Date`,format = "%m/%d/%y"), year = year(now()))))
@@ -34,8 +41,85 @@ lifers.load <- PA_DOC_Lifers_10_12_16_years <- read_csv("PA DOC Lifers-10.12.16-
 # properyear(mdy(lifers.load$`Date of Birth`[1]), year(today()))
 
 
+# geography level: 050
+varcode <- B01001B_002E	#Estimate!!Total!!Male
+key <- db29ecc2d9ec905998b48dd3dafe73475ddfb106
+
+# https://api.census.gov/data/2016/acs/acs5?get=
+# https://factfinder.census.gov/faces/tableservices/jsf/pages/productview.xhtml?pid=ACS_16_5YR_B02001&prodType=table
+  
+url <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_001EA,&for=county:*&in=state:42"
+
+works <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_001E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
+
+male.aa.url <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_002E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
+
+r <- GET(male.aa.url)
+ls(r)
+c <- content(x = r, as = "text")
+typeof(c)
+typeof(test)
+json <- gsub('NaN', 'NA', c, perl = TRUE)
+df <- data.frame(jsonlite::fromJSON(json))
+
+header.true <- function(df) {
+  names(df) <- as.character(unlist(df[1,]))
+  df[-1,]
+}
+
+df <- header.true(df)
+
+separate(df, "NAME", c("County Name","State"),sep = ",")
+df$`County Short` <- word(df$`NAME`, 1)
+
+
+
+
+# Charts
+offense_category <- lifers.load %>% group_by(`Offense Category`) %>% count(sort = T)
+offense <- lifers.load %>% group_by(`Offense`) %>% count(sort = T)
+race <- lifers.load %>% group_by(`Race`) %>% count(sort = T)
+
+ggplot(data = lifers.load, aes(x = `Age at time of commitment`)) + geom_bar()
+
+
+
+
+cut(lifers.load$`Age at time of commitment`, breaks = seq(from = 15, to = 80, by = 5), right = FALSE, labels = FALSE)
+agebreaks <- c(5,10,15,20,25,30,35,40,45,50,55,60,65,70,75,80,85,500)
+agelabels <- c("5-9","10-14","15-19","20-24","25-29","30-34",
+               "35-39","40-44","45-49","50-54","55-59","60-64","65-69",
+               "70-74","75-79","80-84","85+")
+
+lifers.load <- setDT(lifers.load)[ , `Current Age Group` := cut(lifers.load$`Current Age`, 
+                                breaks = agebreaks, 
+                                right = FALSE, 
+                                labels = agelabels)]
+ggplot(lifers.load, aes(x = `Current Age Group`)) + geom_bar() + facet_grid(rows = vars(Race))
+
+lifers.load %>% group_by(`Committing County`) %>% count()
+df
+
+
+
+
+
+# df <- data.frame(fromJSON(json)) %>%
+#   mutate(X1 = as.character(X1),
+#          X2 = as.character(X2),
+#          X3 = as.character(X3),
+#          X4 = as.character(X4))
+
+
+
+
+
+
+
+
+
 # Define UI for application that draws a histogram
-ui <- fluidPage(
+ui <- (
    
    # Application title
    titlePanel("Old Faithful Geyser Data"),
