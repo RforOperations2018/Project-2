@@ -17,6 +17,7 @@ library(httr)
 library(shinydashboard)
 library(shinydashboardPlus)
 library(data.table)
+library(ggmap)
 
 #Get proper year
 properyear <- function(x, year=1968){
@@ -33,7 +34,8 @@ lifers.load <- PA_DOC_Lifers_10_12_16_years <- read_csv("PA DOC Lifers-10.12.16-
          `Age at time of commitment` = round(as.numeric(difftime(`Committing Date`, `Date of Birth`, unit="weeks"))/52.25),
          `# of Years in Prison` = round(as.numeric(difftime(now(), `Committing Date`, unit="weeks"))/52.25),
          `Current Age` = round(as.numeric(difftime(now(), `Date of Birth`, unit="weeks"))/52.25),
-         `Committing County` = str_to_title(`Committing County`))
+         `Committing County` = str_to_title(`Committing County`),
+         `Year Committed` = year(`Committing Date`))
 
 #round((`Committing Date` - `Date of Birth`)/365))
   # mutate(`Years in Prison (as of today)` = year(now())-year(properyear(as.Date(`Committing Date`,format = "%m/%d/%y"), year = year(now()))))
@@ -42,8 +44,8 @@ lifers.load <- PA_DOC_Lifers_10_12_16_years <- read_csv("PA DOC Lifers-10.12.16-
 
 
 # geography level: 050
-varcode <- B01001B_002E	#Estimate!!Total!!Male
-key <- db29ecc2d9ec905998b48dd3dafe73475ddfb106
+varcode <- "B01001B_002E"	#Estimate!!Total!!Male
+key <- "db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 
 # https://api.census.gov/data/2016/acs/acs5?get=
 # https://factfinder.census.gov/faces/tableservices/jsf/pages/productview.xhtml?pid=ACS_16_5YR_B02001&prodType=table
@@ -54,11 +56,11 @@ works <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_001E&for=co
 
 male.aa.url <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_002E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 
+
 r <- GET(male.aa.url)
 ls(r)
 c <- content(x = r, as = "text")
 typeof(c)
-typeof(test)
 json <- gsub('NaN', 'NA', c, perl = TRUE)
 df <- data.frame(jsonlite::fromJSON(json))
 
@@ -69,8 +71,11 @@ header.true <- function(df) {
 
 df <- header.true(df)
 
+# Pull out County name without the word "County")
 separate(df, "NAME", c("County Name","State"),sep = ",")
 df$`County Short` <- word(df$`NAME`, 1)
+
+
 
 
 
@@ -97,11 +102,35 @@ lifers.load <- setDT(lifers.load)[ , `Current Age Group` := cut(lifers.load$`Cur
                                 labels = agelabels)]
 ggplot(lifers.load, aes(x = `Current Age Group`)) + geom_bar() + facet_grid(rows = vars(Race))
 
-lifers.load %>% group_by(`Committing County`) %>% count()
-df
+# count by county
+county_lifers <- lifers.load %>% 
+  filter(Race == "BLACK") %>%
+  group_by(`Committing County`) %>%
+  count()
+
+# total aa pop by county
+df <- mutate(df, aapop = as.numeric(as.character(B01001B_002E)))
+df %>%
+  group_by(`County Short`) %>% 
+  summarize(sum(aapop))
+
+# merge on county
+df <- df %>%
+  left_join(county_lifers,by = c("County Short" = "Committing County"))
+sum(df$n)
 
 
 
+
+# prison
+prisonpop <- lifers.load %>%
+              group_by(`Current Location`) %>%
+              count()
+
+
+# prison_latlon <- geocode(prisonpop$`Current Location`, output = "latlona")
+
+# prison_latlon
 
 
 # df <- data.frame(fromJSON(json)) %>%
@@ -111,49 +140,78 @@ df
 #          X4 = as.character(X4))
 
 
+sum(county_lifers$n)
+# DATA CLEANING
 
 
 
 
 
 
-
-# Define UI for application that draws a histogram
-ui <- (
-   
-   # Application title
-   titlePanel("Old Faithful Geyser Data"),
-   
-   # Sidebar with a slider input for number of bins 
-   sidebarLayout(
-      sidebarPanel(
-         sliderInput("bins",
-                     "Number of bins:",
-                     min = 1,
-                     max = 50,
-                     value = 30)
-      ),
-      
-      # Show a plot of the generated distribution
-      mainPanel(
-         plotOutput("distPlot")
-      )
-   )
+# Define UI Elements
+header <- dashboardHeader(title = "Pennsylvania Prisons Serving Life in Prison",
+                          dropdownMenu(type = "notifications",
+                                       notificationItem(text = "", 
+                                                        icon = icon("users"))
+                          ),
+                          dropdownMenu(type = "tasks", badgeStatus = "success",
+                                       taskItem(value = 10, color = "green",
+                                                text =  "")
+                          ),
+                          dropdownMenu(type = "messages",
+                                       messageItem(
+                                         from = "",
+                                         message = HTML(""),
+                                         icon = icon("exclamation-circle"))
+                          )
 )
+
+
+sidebar <- dashboardSidebar(
+  sidebarMenu(
+    id = "tabs",
+    menuItem("Plot", icon = icon("bar-chart"), tabName = "plot"),
+    menuItem("Table", icon = icon("table"), tabName = "table"),
+    sliderInput("yearInput",
+                "Committed Year:",
+                min = min(lifers.load$`Year Committed`, na.rm = T),
+                max = max(lifers.load$`Year Committed`, na.rm = T),
+                sep = '',
+                step = 1,
+                round = T,
+                dragRange = T, 
+                value = c(min(lifers.load$`Year Committed`, na.rm = T), max(lifers.load$`Year Committed`, na.rm = T)))
+                ,
+    # Year
+    selectInput(inputId = "raceInmate",
+                label = "Race of Inmate:",
+                multiple = TRUE,
+                choices = c("All",str_to_title(sort(unique(lifers.load$Race)))),
+                selected = 
+    menuItem("BarChart", tabName = "scatter",badgeLabel = "new", badgeColor = "green")
+  )
+))
+
+body <- dashboardBody(tabItems(
+  tabItem("plot"),
+  tabItem("map")
+))
+ui <- dashboardPage(header, sidebar, body)
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
-   
-   output$distPlot <- renderPlot({
-      # generate bins based on input$bins from ui.R
-      x    <- faithful[, 2] 
-      bins <- seq(min(x), max(x), length.out = input$bins + 1)
-      
-      # draw the histogram with the specified number of bins
-      hist(x, breaks = bins, col = 'darkgray', border = 'white')
-   })
+
+  # initial reactive
+  liferInput <- reactive({
+    lifers <- lifers.load %>%
+      # Slider Filter
+      filter(`Year Committed` >= input$yearInput[1] & `Year Committed` <= input$yearInput[2])
+    if (!("All" %in% input$raceInmate)) {
+    lifers <- subset(lifers, Race %in% input$raceInmate)}
+  })
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+
 
