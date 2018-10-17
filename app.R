@@ -172,6 +172,7 @@ sidebar <- dashboardSidebar(
     id = "tabs",
     menuItem("Plot", icon = icon("bar-chart"), tabName = "plot"),
     menuItem("Table", icon = icon("table"), tabName = "table"),
+    menuItem("Map", icon = icon("map-marker"), tabName = "map"),
     sliderInput("yearInput",
                 "Committed Year:",
                 min = min(lifers.load$`Year Committed`, na.rm = T),
@@ -209,6 +210,8 @@ server <- function(input, output) {
     if (!("All" %in% input$raceInmate)) {
     lifers <- subset(lifers, Race %in% input$raceInmate)}
   })
+  
+  
 }
 
 # Run the application 
