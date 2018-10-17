@@ -52,7 +52,7 @@ key <- "db29ecc2d9ec905998b48dd3dafe73475ddfb106"
   
 url <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_001EA,&for=county:*&in=state:42"
 
-works <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_001E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
+# works <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_001E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 
 male.aa.url <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_002E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 
@@ -64,6 +64,7 @@ typeof(c)
 json <- gsub('NaN', 'NA', c, perl = TRUE)
 df <- data.frame(jsonlite::fromJSON(json))
 
+# function to make first row column names
 header.true <- function(df) {
   names(df) <- as.character(unlist(df[1,]))
   df[-1,]
@@ -76,18 +77,12 @@ separate(df, "NAME", c("County Name","State"),sep = ",")
 df$`County Short` <- word(df$`NAME`, 1)
 
 
-
-
-
-
-# Charts
+# Sample Charts
 offense_category <- lifers.load %>% group_by(`Offense Category`) %>% count(sort = T)
 offense <- lifers.load %>% group_by(`Offense`) %>% count(sort = T)
 race <- lifers.load %>% group_by(`Race`) %>% count(sort = T)
 
 ggplot(data = lifers.load, aes(x = `Age at time of commitment`)) + geom_bar()
-
-
 
 
 cut(lifers.load$`Age at time of commitment`, breaks = seq(from = 15, to = 80, by = 5), right = FALSE, labels = FALSE)
@@ -195,8 +190,15 @@ sidebar <- dashboardSidebar(
 
 body <- dashboardBody(tabItems(
   tabItem("plot"),
-  tabItem("map")
-))
+  tabItem("table",
+          fluidPage(
+            box(title = "Prisoners: Life", DT::dataTableOutput("table"), width = 12))),
+  tabItem("map",
+          fluidPage(
+          leafletOutput("leaflet")
+          ))
+  ))
+
 ui <- dashboardPage(header, sidebar, body)
 
 # Define server logic required to draw a histogram
@@ -209,8 +211,25 @@ server <- function(input, output) {
       filter(`Year Committed` >= input$yearInput[1] & `Year Committed` <= input$yearInput[2])
     if (!("All" %in% input$raceInmate)) {
     lifers <- subset(lifers, Race %in% input$raceInmate)}
+    return(lifers)
   })
   
+  output$table <- DT::renderDataTable({
+    dat <- liferInput()
+    datatable(dat[, !names(dat) %in% c("Last Name", "First Name","Mid Name")] 
+,options = list(scrollX = TRUE))
+    
+  })
+  
+  #map
+  output$leaflet <- renderLeaflet({
+    leaflet() %>%
+      addProviderTiles("Stamen.Toner") %>%
+      setView(lat = 40.8766, 
+              lng = -77.8367,
+              zoom = 5)
+    
+  })
   
 }
 
