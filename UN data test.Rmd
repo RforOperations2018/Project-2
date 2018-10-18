@@ -1,0 +1,30 @@
+---
+title: "testing"
+author: "Owen Stevenson"
+date: "10/11/2018"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(readxl)
+library(reshape2)
+
+```
+
+
+
+```{r}
+raw.load <- read_excel("SL_EMP_GTOTL.xlsx")
+data <- raw.load %>%
+  mutate(GeoAreaName = gsub("[^[:alnum:][:space:]]","",GeoAreaName)) %>%
+  select("GeoAreaName","2000":"2017") %>%
+  melt("GeoAreaName") %>%
+  na.omit() %>%
+  mutate(variable = na.omit(as.numeric(as.character(variable))))
+
+names <- unique(data$GeoAreaName)
+data <- filter(data, data$GeoAreaName %in% c("United States of America", "United Kingdom of Great Britain and Northern Ireland","France","Canada","Venezuela Bolivarian Republic of", "New Zealand","Norway", "Philippines"))
+  
+ggplot(data, aes(x = variable, y = value, group = GeoAreaName, color = GeoAreaName)) + geom_line()
+```
+

@@ -1,0 +1,98 @@
+---
+title: "FLexdashboard"
+author: "Owen Stevenson"
+date: "10/16/2018"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: row
+    vertical_layout: fill
+    theme: sandstone
+    favicon: favicon.ico
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+# library(package)
+library(reshape2)
+library(dplyr)
+library(plotly)
+library(tidyverse)
+library(lubridate)
+library(jsonlite)
+library(httr)
+pdf(NULL)
+
+#function to code year correction
+properyear <- function(x, year=1968){
+  m <- year(x) %% 100
+  year(x) <- ifelse(m >= year %% 100, 1900+m, 2000+m)
+  x
+}
+
+
+lifers.load <- read_csv("PA DOC Lifers-10.12.16-years.csv") %>%
+  mutate(`Date of Birth` = properyear(as.Date(`Date of Birth`,format = "%m/%d/%y"), year = year(now())),
+         `Committing Date` = properyear(as.Date(`Committing Date`, format = "%m/%d/%y"), year = year(now())),
+         `Age at time of commitment` = round(as.numeric(difftime(`Committing Date`, `Date of Birth`, unit="weeks"))/52.25),
+         `# of Years in Prison` = round(as.numeric(difftime(now(), `Committing Date`, unit="weeks"))/52.25),
+         `Current Age` = round(as.numeric(difftime(now(), `Date of Birth`, unit="weeks"))/52.25),
+         `Committing County` = str_to_title(`Committing County`),
+         `Year Committed` = year(`Committing Date`))
+
+male.aa.url <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_002E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
+key <- "db29ecc2d9ec905998b48dd3dafe73475ddfb106"
+
+
+r <- GET(male.aa.url)
+ls(r)
+c <- content(x = r, as = "text")
+typeof(c)
+json <- gsub('NaN', 'NA', c, perl = TRUE)
+df <- data.frame(jsonlite::fromJSON(json))
+
+header.true <- function(df) {
+  names(df) <- as.character(unlist(df[1,]))
+  df[-1,]
+}
+
+df <- header.true(df)
+
+# Pull out County name without the word "County")
+separate(df, "NAME", c("County Name","State"),sep = ",")
+df$`County Short` <- word(df$`NAME`, 1)
+
+```
+
+```{r}
+# initial reactive
+liferInput <- reactive({
+  lifers <- lifers.load %>%
+    # Slider Filter
+    filter(`Year Committed` >= input$yearInput[1] & `Year Committed` <= input$yearInput[2])
+})
+  
+```
+
+
+
+Plot
+=====================================
+
+Sidebar {.sidebar}
+-------------------------------------
+
+```{r}
+# Year Committed
+sliderInput("yearInput",
+                "Year Committed:",
+                min = min(lifers.load$`Year Committed`, na.rm = T),
+                max = max(lifers.load$`Year Committed`, na.rm = T),
+                sep = '',
+                round = T,
+                dragRange = T, 
+                value = c(min(lifers.load$`Year Committed`, na.rm = T), max(lifers.load$`Year Committed`, na.rm = T)))
+
+
+```
+
