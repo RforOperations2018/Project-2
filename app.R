@@ -18,6 +18,7 @@ library(shinydashboard)
 library(shinydashboardPlus)
 library(data.table)
 library(ggmap)
+library(leaflet)
 
 #Get proper year
 properyear <- function(x, year=1968){
@@ -77,6 +78,7 @@ separate(df, "NAME", c("County Name","State"),sep = ",")
 df$`County Short` <- word(df$`NAME`, 1)
 
 
+
 # Sample Charts
 offense_category <- lifers.load %>% group_by(`Offense Category`) %>% count(sort = T)
 offense <- lifers.load %>% group_by(`Offense`) %>% count(sort = T)
@@ -98,10 +100,14 @@ lifers.load <- setDT(lifers.load)[ , `Current Age Group` := cut(lifers.load$`Cur
 ggplot(lifers.load, aes(x = `Current Age Group`)) + geom_bar() + facet_grid(rows = vars(Race))
 
 # count by county
-county_lifers <- lifers.load %>% 
+all_lifers <- lifers.load %>%
+  group_by(`Committing County`) %>%
+  dplyr::count()
+
+aa_lifers <- lifers.load %>% 
   filter(Race == "BLACK") %>%
   group_by(`Committing County`) %>%
-  count()
+  dplyr::count()
 
 # total aa pop by county
 df <- mutate(df, aapop = as.numeric(as.character(B01001B_002E)))
@@ -111,8 +117,14 @@ df %>%
 
 # merge on county
 df <- df %>%
-  left_join(county_lifers,by = c("County Short" = "Committing County"))
-sum(df$n)
+  left_join(aa_lifers,by = c("County Short" = "Committing County")) %>%
+  # dplyr::rename(`LIP Black` = `n`) %>%
+  left_join(all_lifers,by = c("County Short" = "Committing County")) #%>%
+  # dplyr::rename(`LIP All` = `n`)
+
+df <- rename(df, `LIP Black` = `n.x`, `LIP All` = `n.y`, `AA Pop` = `aapop`)
+
+
 
 
 
@@ -139,8 +151,9 @@ sum(county_lifers$n)
 # DATA CLEANING
 
 
-
-
+# load counties
+counties.load <- readOGR("Pennsylvania County Boundaries.geojson",layer = "OGRGeoJSON")
+View(counties.load@data)
 
 
 # Define UI Elements
@@ -228,6 +241,12 @@ server <- function(input, output) {
       setView(lat = 40.8766, 
               lng = -77.8367,
               zoom = 5)
+    # change to lifers at deploy
+    # import geojson
+    # counties.load <- readOGR("https://data.pa.gov/resource/n96m-gp6j",layer = "OGRGeoJSON")
+    
+    counties.load@data <- counties.load@data %>%
+      inner_join(df, by= c("fips_count" = "county"))
     
   })
   
