@@ -64,10 +64,10 @@ key <- "db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 
 
 # Sample Charts
-offense_category <- lifers.load %>% group_by(`Offense Category`) %>% count(sort = T)
-offense <- lifers.load %>% group_by(`Offense`) %>% count(sort = T)
-race <- lifers.load %>% group_by(`Race`) %>% count(sort = T)
-ggplot(data = lifers.load, aes(x = `Age at time of commitment`)) + geom_bar()
+# offense_category <- lifers.load %>% group_by(`Offense Category`) %>% count(sort = T)
+# offense <- lifers.load %>% group_by(`Offense`) %>% count(sort = T)
+# race <- lifers.load %>% group_by(`Race`) %>% count(sort = T)
+# ggplot(data = lifers.load, aes(x = `Age at time of commitment`)) + geom_bar()
 
 
 cut(lifers.load$`Age at time of commitment`, breaks = seq(from = 15, to = 80, by = 5), right = FALSE, labels = FALSE)
@@ -294,6 +294,7 @@ server <- function(input, output) {
               
               aa_pal <- colorNumeric("Reds",domain = df$`% AA Males LIP`, na.color = "white")
               
+              prisons <- read_csv("Prison Locations.csv")
               
     
     counties.load %>%
@@ -305,11 +306,15 @@ server <- function(input, output) {
       addPolygons(weight = 1,
                   fillOpacity = 1,
                   color = ~aa_pal(`% AA Males LIP`), 
-                  label = ~paste0(round(`% AA Males LIP`*1000,1)," out of every 1,000 black males from ", `County Short`, " County are serving Life in Prison"),
-                  highlight = highlightOptions(weight = 3, color = "gray", bringToFront = T))
-
+                  label = ~paste0(round(`% AA Males LIP`*1000,1)," out of every 1,000 ", ifelse(input$racemap == "B01001B_002E", "black","white"), " males from ", `County Short`, " County are serving Life in Prison"),
+                  highlight = highlightOptions(weight = 3, color = "gray", bringToFront = T), group = "Per Capita") %>%
+      addCircleMarkers(data = prisons, 
+                       lng = ~longitude, 
+                       lat = latitude, 
+                       pop = ~Name, 
+                       color = "#FF0000",group = 'Prisoners') 
       
-    prisons <- read_csv("Prison Locations.csv")
+    
     keytable <- data.frame(RACE = c("WHITE","BLACK"),key = c(white_varcode, aa_varcode))
     
     # import geojson
