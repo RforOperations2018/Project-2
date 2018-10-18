@@ -22,6 +22,7 @@ library(leaflet)
 library(plotly)
 library(DT)
 
+
 #Get proper year
 properyear <- function(x, year=1968){
   m <- year(x) %% 100
@@ -30,7 +31,7 @@ properyear <- function(x, year=1968){
 }
 
 
-#Get data
+#Get lifers data and
 lifers.load <- PA_DOC_Lifers_10_12_16_years <- read_csv("PA DOC Lifers-10.12.16-years.csv") %>%
   mutate(`Date of Birth` = properyear(as.Date(`Date of Birth`,format = "%m/%d/%y"), year = year(now())),
          `Committing Date` = properyear(as.Date(`Committing Date`, format = "%m/%d/%y"), year = year(now())),
@@ -58,26 +59,7 @@ key <- "db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 
 # works <- "https://api.census.gov/data/2016/acs/acs5?get=NAME,B01001B_001E&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 # B01001B_002E
-male.aa.url <- paste0("https://api.census.gov/data/2016/acs/acs5?get=NAME,", input$race, "&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106")
 
-
-r <- GET(male.aa.url)
-ls(r)
-c <- content(x = r, as = "text")
-typeof(c)
-json <- gsub('NaN', 'NA', c, perl = TRUE)
-df <- data.frame(jsonlite::fromJSON(json))
-
-# function to make first row column names
-header.true <- function(df) {
-  names(df) <- as.character(unlist(df[1,]))
-  df[-1,]
-}
-
-df <- header.true(df)
-# Pull out County name without the word "County")
-separate(df, "NAME", c("County Name","State"),sep = ",")
-df$`County Short` <- word(df$`NAME`, 1)
 
 
 
@@ -98,33 +80,9 @@ lifers.load <- setDT(lifers.load)[ , `Current Age Group` := cut(lifers.load$`Cur
                                 breaks = agebreaks, 
                                 right = FALSE, 
                                 labels = agelabels)]
-ggplot(lifers.load, aes(x = `Current Age Group`)) + geom_bar() + facet_grid(rows = vars(Race))
+# ggplot(lifers.load, aes(x = `Current Age Group`)) + geom_bar() + facet_grid(rows = vars(Race))
 
-# count by county
-all_lifers <- lifers.load %>%
-  group_by(`Committing County`) %>%
-  dplyr::count()
 
-aa_lifers <- lifers.load %>% 
-  filter(Race == "BLACK") %>%
-  group_by(`Committing County`) %>%
-  dplyr::count()
-
-# total aa pop by county
-df <- mutate(df, aapop = as.numeric(as.character(B01001B_002E)))
-df %>%
-  group_by(`County Short`) %>% 
-  summarize(sum(aapop))
-
-# merge on county
-df <- df %>%
-  left_join(aa_lifers,by = c("County Short" = "Committing County")) %>%
-  # dplyr::rename(`LIP Black` = `n`) %>%
-  left_join(all_lifers,by = c("County Short" = "Committing County")) #%>%
-  # dplyr::rename(`LIP All` = `n`)
-
-df <- rename(df, `LIP Black` = `n.x`, `LIP All` = `n.y`, `AA Pop` = `aapop`) %>%
-  mutate(`% AA Males LIP` = round(`LIP Black`/`AA Pop`,4))
 
 
 
@@ -153,18 +111,17 @@ prisonpop <- lifers.load %>%
 #          X4 = as.character(X4))
 
 
-sum(county_lifers$n)
+# sum(county_lifers$n)
 # DATA CLEANING
 
 # Color Palette
-aa_pal <- colorNumeric("Reds",domain = df$`% AA Males LIP`, na.color = "white")
 
 
 
 
 # load counties
 counties.load <- readOGR("Pennsylvania County Boundaries.geojson",layer = "OGRGeoJSON")
-View(counties.load@data)
+# View(counties.load@data)
 
 
 # Define UI Elements
@@ -236,7 +193,8 @@ body <- dashboardBody(tabItems(
               box(
                 selectInput("racemap",
                             "Per Capita Life in Prison by Race",
-                            choices = c("WHITE" = "B01001A_002E","BLACK" = "B01001B_002E")
+                            choices = c("WHITE" = "B01001A_002E","BLACK" = "B01001B_002E"),
+                            selected = "B01001B_002E"
               )
             ),
             fluidRow(
@@ -283,10 +241,60 @@ server <- function(input, output) {
   
   #map
   output$leaflet <- renderLeaflet({
-    counties.load@data <- counties.load@data %>%
-      inner_join(df, by= c("fips_count" = "county"))
+              male.aa.url <- paste0("https://api.census.gov/data/2016/acs/acs5?get=NAME,", input$race, "&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106")
+              
+              
+              r <- GET(male.aa.url)
+              ls(r)
+              c <- content(x = r, as = "text")
+              typeof(c)
+              json <- gsub('NaN', 'NA', c, perl = TRUE)
+              df <- data.frame(jsonlite::fromJSON(json))
+              
+              # function to make first row column names
+              header.true <- function(df) {
+                names(df) <- as.character(unlist(df[1,]))
+                df[-1,]
+              }
+              
+              df <- header.true(df)
+              # Pull out County name without the word "County")
+              separate(df, "NAME", c("County Name","State"),sep = ",")
+              df$`County Short` <- word(df$`NAME`, 1)
+              
+              
+              counties.load@data <- counties.load@data %>%
+                inner_join(df, by= c("fips_count" = "county"))
     
-    
+              # count by county
+              all_lifers <- lifers.load %>%
+                group_by(`Committing County`) %>%
+                dplyr::count()
+              
+              aa_lifers <- lifers.load %>% 
+                filter(Race == "BLACK") %>%
+                group_by(`Committing County`) %>%
+                dplyr::count()
+              
+              # total aa pop by county
+              df <- mutate(df, aapop = as.numeric(as.character(B01001B_002E)))
+              df %>%
+                group_by(`County Short`) %>% 
+                summarize(sum(aapop))
+              
+              # merge on county
+              df <- df %>%
+                left_join(aa_lifers,by = c("County Short" = "Committing County")) %>%
+                # dplyr::rename(`LIP Black` = `n`) %>%
+                left_join(all_lifers,by = c("County Short" = "Committing County")) #%>%
+              # dplyr::rename(`LIP All` = `n`)
+              
+              df <- rename(df, `LIP Black` = `n.x`, `LIP All` = `n.y`, `AA Pop` = `aapop`) %>%
+                mutate(`% AA Males LIP` = round(`LIP Black`/`AA Pop`,4))
+              
+              aa_pal <- colorNumeric("Reds",domain = df$`% AA Males LIP`, na.color = "white")
+              
+              
     
     counties.load %>%
       leaflet() %>%
