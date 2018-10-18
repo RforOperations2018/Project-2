@@ -122,9 +122,8 @@ df <- df %>%
   left_join(all_lifers,by = c("County Short" = "Committing County")) #%>%
   # dplyr::rename(`LIP All` = `n`)
 
-df <- rename(df, `LIP Black` = `n.x`, `LIP All` = `n.y`, `AA Pop` = `aapop`)
-
-
+df <- rename(df, `LIP Black` = `n.x`, `LIP All` = `n.y`, `AA Pop` = `aapop`) %>%
+  mutate(`% AA Males LIP` = round(`LIP Black`/`AA Pop`,4))
 
 
 
@@ -149,6 +148,9 @@ prisonpop <- lifers.load %>%
 
 sum(county_lifers$n)
 # DATA CLEANING
+aa_pal <- colorNumeric("Reds",domain = df$`% AA Males LIP`)
+
+
 
 
 # load counties
@@ -236,17 +238,27 @@ server <- function(input, output) {
   
   #map
   output$leaflet <- renderLeaflet({
-    leaflet() %>%
+    counties.load@data <- counties.load@data %>%
+      inner_join(df, by= c("fips_count" = "county"))
+    
+    
+    
+    counties.load %>%
+      leaflet() %>%
       addProviderTiles("Stamen.Toner") %>%
       setView(lat = 40.8766, 
               lng = -77.8367,
-              zoom = 5)
-    # change to lifers at deploy
+              zoom = 5) %>%
+      addPolygons(weight = 1,
+                  fillOpacity = 1,
+                  color = ~aa_pal(`% AA Males LIP`),
+                  label = ~paste0(round(`% AA Males LIP`*1000,1)," out of every 1,000 black males from ", `County Short`, " County are serving Life in Prison"),
+                  highlight = highlightOptions(weight = 3, color = "white", bringToFront = T))
+
+      
     # import geojson
     # counties.load <- readOGR("https://data.pa.gov/resource/n96m-gp6j",layer = "OGRGeoJSON")
     
-    counties.load@data <- counties.load@data %>%
-      inner_join(df, by= c("fips_count" = "county"))
     
   })
   
