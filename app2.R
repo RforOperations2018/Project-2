@@ -120,7 +120,7 @@ prisonpop <- lifers.load %>%
 
 
 # load counties
-counties.load <- readOGR("Pennsylvania County Boundaries.geojson",layer = "OGRGeoJSON")
+counties.load <- readOGR("Pennsylvania County Boundaries.geojson")
 # View(counties.load@data)
 
 
@@ -241,13 +241,13 @@ server <- function(input, output) {
   
   #map
   output$leaflet <- renderLeaflet({
-              male.aa.url <- paste0("https://api.census.gov/data/2016/acs/acs5?get=NAME,", input$race, "&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106")
+              male.aa.url <- paste0("https://api.census.gov/data/2016/acs/acs5?get=NAME,", input$racemap, "&for=county:*&in=state:42&key=db29ecc2d9ec905998b48dd3dafe73475ddfb106")
               
               
               r <- GET(male.aa.url)
               ls(r)
               c <- content(x = r, as = "text")
-              typeof(c)
+              # typeof(c)
               json <- gsub('NaN', 'NA', c, perl = TRUE)
               df <- data.frame(jsonlite::fromJSON(json))
               
@@ -263,8 +263,7 @@ server <- function(input, output) {
               df$`County Short` <- word(df$`NAME`, 1)
               
               
-              counties.load@data <- counties.load@data %>%
-                inner_join(df, by= c("fips_count" = "county"))
+              
     
               # count by county
               all_lifers <- lifers.load %>%
@@ -277,7 +276,7 @@ server <- function(input, output) {
                 dplyr::count()
               
               # total aa pop by county
-              df <- mutate(df, aapop = as.numeric(as.character(B01001B_002E)))
+              df <- mutate(df, aapop = as.numeric(as.character(ifelse(input$racemap == aa_varcode, B01001B_002E, B01001A_002E)))) #this could be where not working
               df %>%
                 group_by(`County Short`) %>% 
                 summarize(sum(aapop))
@@ -296,10 +295,12 @@ server <- function(input, output) {
               
               prisons <- read_csv("Prison Locations.csv")
               
+              counties.load@data <- counties.load@data %>%
+                inner_join(df, by= c("fips_count" = "county"))
     
     counties.load %>%
       leaflet() %>%
-      addProviderTiles("Stamen.Toner") %>%
+      addProviderTiles("Stamen.Toner", group = "Basemap") %>%
       setView(lat = 40.8766, 
               lng = -77.8367,
               zoom = 7) %>%
@@ -310,9 +311,10 @@ server <- function(input, output) {
                   highlight = highlightOptions(weight = 3, color = "gray", bringToFront = T), group = "Per Capita") %>%
       addCircleMarkers(data = prisons, 
                        lng = ~longitude, 
-                       lat = latitude, 
-                       pop = ~Name, 
-                       color = "#FF0000",group = 'Prisoners') 
+                       lat = ~latitude, 
+                       popup = ~Name
+                       , group = "State Prisons") %>%
+      addLayersControl(baseGroups = "Basemap", overlayGroups = c("Per Capita","State Prisons"))
       
     
     keytable <- data.frame(RACE = c("WHITE","BLACK"),key = c(white_varcode, aa_varcode))
