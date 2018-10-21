@@ -52,6 +52,8 @@ aa_varcode <- "B01001B_002E" #Estimate!!Total!!Male
 white_varcode <- "B01001A_002E"
 key <- "db29ecc2d9ec905998b48dd3dafe73475ddfb106"
 
+# Just delete this and/or put it in a separate R script for reference next time
+
 # https://api.census.gov/data/2016/acs/acs5?get=
 # https://factfinder.census.gov/faces/tableservices/jsf/pages/productview.xhtml?pid=ACS_16_5YR_B02001&prodType=table
   
@@ -86,11 +88,11 @@ lifers.load <- setDT(lifers.load)[ , `Current Age Group` := cut(lifers.load$`Cur
 
 
 
+# So much white space
 
 
 
-
-
+# You never use this again...
 # prison
 prisonpop <- lifers.load %>%
               group_by(`Current Location`) %>%
@@ -98,7 +100,7 @@ prisonpop <- lifers.load %>%
 
 
 
-
+# More stuff that could be in a different file
 # prison_latlon <- geocode(prisonpop$`Current Location`, output = "latlona")
 
 # prison_latlon
@@ -316,8 +318,8 @@ server <- function(input, output) {
                        , group = "State Prisons") %>%
       addLayersControl(baseGroups = "Basemap", overlayGroups = c("Per Capita","State Prisons"))
       
-    
-    keytable <- data.frame(RACE = c("WHITE","BLACK"),key = c(white_varcode, aa_varcode))
+    # The code which makes the map HAS to be the last thing called in your reactive function or else it won't work. Your "messy" coding is really did you in here, what is this even for? It's never referenced anywhere else...
+    # keytable <- data.frame(RACE = c("WHITE","BLACK"),key = c(white_varcode, aa_varcode))
     
     # import geojson
     # counties.load <- readOGR("https://data.pa.gov/resource/n96m-gp6j",layer = "OGRGeoJSON")
